@@ -1,8 +1,7 @@
 import jetson.inference  # Python bindings from TensorRT C++ Libraries.
 import jetson.utils  # Camera and display helper methods.
 
-from ImageSources import LocalVideo, Camera
-
+from ImageSources import LocalVideo, StillImage, Camera
 
 class PerceptionMan:
     """
@@ -14,7 +13,7 @@ class PerceptionMan:
 
     def __init__(self, network='ssd-mobilenet-v2', threshold=0.5):
         # Load pre-trained object detection network.
-        self.net = jetson.inference.detectNet(network, threshold)
+        self.net = jetson.inference.detectNet(network=network, threshold=threshold)
 
 
     def detect_objects(self, image, width, height):
@@ -29,15 +28,15 @@ class PerceptionMan:
 
 # Test Script
 if __name__ == '__main__':
-    perception = PerceptionMan()
-    source = LocalVideo('/home/diego/Desktop/InFrame/perception/skateboarder_test.mp4')
+    perception = PerceptionMan(threshold=0.3)
+    #source = LocalVideo('/home/diego/Desktop/InFrame/perception/tests/skateboarder_test.mp4')
+    source = StillImage('/home/diego/Desktop/InFrame/perception/tests/near_still_16by9.jpg')
     display = jetson.utils.glDisplay()
 
     while display.IsOpen():
-        while True:
-            img, width, height = source.get_frame()
-            perception.detect_objects(img, width, height)
-            display.RenderOnce(img, width, height)
-            display.SetTitle("ObjectDetection | Network {:.0f} FPS".format(perception.net.GetNetworkFPS()))
+        img, width, height = source.get_frame()
+        perception.detect_objects(img, width, height)
+        display.RenderOnce(img, width, height)
+        display.SetTitle("ObjectDetection | Network {:.0f} FPS".format(perception.net.GetNetworkFPS()))
 
     source.close()
