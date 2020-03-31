@@ -1,7 +1,10 @@
 import jetson.inference  # Python bindings from TensorRT C++ Libraries.
 import jetson.utils  # Camera and display helper methods.
 
+import cv2
+
 from ImageSources import LocalVideo, StillImage, Camera
+from PerceptionUtils import BoundingBox
 
 class PerceptionMan:
     """
@@ -15,28 +18,96 @@ class PerceptionMan:
         # Load pre-trained object detection network.
         self.net = jetson.inference.detectNet(network=network, threshold=threshold)
 
+        # CSRT tracker yields higher tracking accuracy with slower throughput.
+        self.tracker = cv2.TrackerCSRT_create()
+
 
     def detect_objects(self, image, width, height):
+        """
+        Detects objects in a given image according to the confidence threshold
+        specified in the constructor. Overlays results on input image by default.
+        :param image: The input image.
+        :param width: Width of the input image.
+        :param height: Height of the input image.
+        :return: A list of the detected object bounding boxes (type jetson.inference.detectNet.Detection)
+        """
         # Detect objects in a given image and overlay results on top of it.
-        detections = self.net.Detect(image, width, height)
+        detections = self.net.Detect(image=image, width=width, height=height, overlay=True)
         return detections
 
 
-    def track_object(self):
-        pass
+    def initialize_tracker(self, first_frame, bbox):
+        """
+        Initializes a CSRT tracker to track the object in the given bounding box.
+        :param first_frame: The first frame of the video in which the subject will be tracked.
+        :param bbox: The box surrounding the target object (type BoundingBox from PerceptionUtils).
+        :return success: True if tracker was successfully initialized, false otherwise.
+        """
+        x1, y1 = bbox.top_left
+        x2, y2 = bbox.bottom_right
+        success = self.tracker.init(first_frame, (x1, y1, x2, y2)) # TODO: Verify that it expects two points rather than a point plus width and height
+
+        # Update current bounding box.
+        self.curr_bounding_box = bbox
+
+        return success
+
+
+    def track_object_in_frame(self, curr_frame):
+        """
+        Tracks the previously defined target (during initialization) in the current frame.
+        :param curr_frame: Current frame in which to look for target.
+        :return success:  True if tracking in the current frame succeeded, false otherwise.
+        :return optical_flow: Vector from the center of the previous bounding box to the current one (i.e. object movement).
+        """
+        success, new_bbox = self.tracker.update(curr_frame)
+
+        # Turn new bbox into our definition of a bbox (note: tracker's bbox uses width and height instead of a second point).
+        new_bbox = BoundingBox(new_bbox[0], new_bbox[1], new_bbox[0] + new_bbox[2], new_bbox[1] + new_bbox[3])
+
+        # Calculate optical flow using the two most recent bboxes and update current bbox.
+        optical_flow = self.curr_bounding_box.vector_to(new_bbox)
+        self.curr_bounding_box = new_bbox
+
+        return success, optical_flow
+
 
 
 # Test Script
 if __name__ == '__main__':
-    perception = PerceptionMan(threshold=0.3)
-    #source = LocalVideo('/home/diego/Desktop/InFrame/perception/tests/skateboarder_test.mp4')
-    source = StillImage('/home/diego/Desktop/InFrame/perception/tests/near_still_16by9.jpg')
-    display = jetson.utils.glDisplay()
+    source = LocalVideo('/home/diego/Desktop/InFrame/perception/tests/skateboarder_test.mp4')
+    first_frame, width, height = source.get_frame()
 
-    while display.IsOpen():
-        img, width, height = source.get_frame()
-        perception.detect_objects(img, width, height)
-        display.RenderOnce(img, width, height)
-        display.SetTitle("ObjectDetection | Network {:.0f} FPS".format(perception.net.GetNetworkFPS()))
+    # Detect objects in the first frame.
+    perception = PerceptionMan(threshold=0.5)
+    detections = perception.detect_objects(first_frame, width, height)
+
+    roi = detections[0]
+    initial_bbox = BoundingBox()
+    success = perception.initialize_tracker(first_frame, initial_bbox)
+
+    while True:
+        frame, frame_width, frame_height = source.get_frame()
+
+        prev_bbox = perception.curr_bounding_box
+        success, optical_flow = perception.track_object_in_frame(frame)
+
+        if success:
+            print(optical_flow)
+            p1 = prev_bbox.center
+            #p2 = perception.curr_bounding_box.center
+            p2 = (p1[0] + optical_flow[0], p1[1] + optical_flow[1])
+
+            cv2.arrowedLine(frame, p1, p2, (255, 0, 0), 2, 1)
+        else:
+            print("Tracking error.")
+            cv2.putText(frame, "Tracking failure detected", (100, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
+
+        # Display result
+        cv2.imshow("Tracking", frame)
+
+        # Exit if ESC pressed
+        if cv2.waitKey(1) & 0xff == 27:
+            break
 
     source.close()
