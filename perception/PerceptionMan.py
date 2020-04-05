@@ -2,7 +2,7 @@ import jetson.inference  # Python bindings from TensorRT C++ Libraries.
 import jetson.utils  # Camera and display helper methods.
 
 import cv2
-import math
+import time
 
 from ImageSources import ImageSource, LocalVideo, StillImage, Camera
 from PerceptionUtils import BoundingBox
@@ -21,6 +21,8 @@ class PerceptionMan:
 
         # CSRT tracker yields higher tracking accuracy with slower throughput.
         self.tracker = cv2.TrackerCSRT_create()
+        # self.tracker = cv2.TrackerMOSSE_create()
+        # self.tracker = cv2.TrackerMedianFlow_create()
 
 
     def detect_objects(self, image, width, height):
@@ -92,7 +94,7 @@ if __name__ == '__main__':
     cuda_frame = ImageSource.RGB_to_cudaRGBA(first_frame)
     detections = perception.detect_objects(cuda_frame, width, height)
 
-    # Choose the human
+    # Choose the human (me).
     for detection in detections:
         if detection.ClassID == 1:
             target = detection
@@ -100,25 +102,25 @@ if __name__ == '__main__':
     initial_bbox = BoundingBox(left=target.Left, top=target.Top, right=target.Right, bottom=target.Bottom)
     success = perception.initialize_tracker(first_frame, initial_bbox)
 
-    i = 0
     while True:
-        # Skip every n frames
-        n = 5
-        i += 1
-        if i % n == 0:
-            frame, frame_width, frame_height = source.get_frame()
-            success, optical_flow, new_bbox = perception.track_object_in_new_frame(frame)
+        last_time = time.time()
 
-            if success:
-                p1 = new_bbox.top_left
-                p2 = new_bbox.bottom_right
-                cv2.rectangle(frame, p1, p2, (0, 0, 255), 1)
-            else:
-                print("Tracking error.")
-                cv2.putText(frame, "Tracking failure detected", (100, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
+        frame, frame_width, frame_height = source.get_frame()
+        success, optical_flow, new_bbox = perception.track_object_in_new_frame(frame)
 
-            # Display result
-            cv2.imshow("Tracking", frame)
+        if success:
+            p1 = new_bbox.top_left
+            p2 = new_bbox.bottom_right
+            cv2.rectangle(frame, p1, p2, (0, 0, 255), 1)
+        else:
+            print("Tracking error.")
+            cv2.putText(frame, "Tracking failure detected", (100, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
+
+        # Display result
+        cv2.imshow("Tracking", frame)
+
+        fps = 1 / (time.time() - last_time)
+        print(fps) # Note: 2-3 FPS using CSRT (works great), 20 FPS using MOSSE (loses me).
 
         # Exit if ESC pressed
         if cv2.waitKey(1) & 0xff == 27:

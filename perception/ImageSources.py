@@ -58,7 +58,7 @@ class Camera(ImageSource):
     def get_frame(self):
         """
         NOTE: Directly returns RGBA image inside of CUDA capsule, no need to transform
-        upon return. #TODO: Change to return standard image in order to do tracking.
+        upon return. #TODO: Need to change this to return standard image in order to do tracking.
         """
         # Capture frame and convert it to float4 RGBA.
         img, width, height = self.camera.CaptureRGBA()
