@@ -10,8 +10,6 @@ class ImageSource:
     def get_frame(self):
         """
         Returns a single frame from the image source, as well as its width and height.
-        Frame must be in RGBA space and inside of a CUDA memory
-        capsule as expected by the object detection network.
         args: None
         returns: frame, width, height
         """
@@ -27,9 +25,10 @@ class ImageSource:
         raise NotImplementedError
 
 
-    def RGB_to_cudaRGBA(self, rgb_frame):
+    def RGB_to_cudaRGBA(rgb_frame):
         """
-        Transforms a standard RGB frame to a frame with an alpha channel
+        @staticmethod
+        Helper method that transforms a standard RGB frame to a frame with an alpha channel
         and inside of a cuda memory capsule to pass into the object detection network.
         args:
             - rgb_frame: Standard frame in RGB color space.
@@ -57,6 +56,10 @@ class Camera(ImageSource):
 
 
     def get_frame(self):
+        """
+        NOTE: Directly returns RGBA image inside of CUDA capsule, no need to transform
+        upon return. #TODO: Change to return standard image in order to do tracking.
+        """
         # Capture frame and convert it to float4 RGBA.
         img, width, height = self.camera.CaptureRGBA()
         return img, width, height
@@ -84,9 +87,7 @@ class LocalVideo(ImageSource):
 
         height, width = frame.shape[:2]
 
-        cuda_frame = super().RGB_to_cudaRGBA(frame)
-
-        return cuda_frame, width, height
+        return frame, width, height
 
 
     def close(self):
@@ -111,9 +112,8 @@ class StillImage(ImageSource):
 
     def get_frame(self):
         height, width = self.img.shape[:2]
-        rgba_frame = super().RGB_to_cudaRGBA(self.img)
 
-        return rgba_frame, width, height
+        return self.img, width, height
 
 
     def close(self):
