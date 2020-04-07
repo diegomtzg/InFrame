@@ -36,7 +36,7 @@ class PerceptionMan:
         :return result_img: CUDA rgba image with object detection results overlaid
         """
         # Transform image into RGBA space and place into a cuda container since object detection model expects it.
-        cuda_img = ImageSource.RGB_to_cudaRGBA(image)
+        cuda_img = ImageSource.rgb2crgba(image)
 
         # Detect objects in a given image and overlay results on top of it.
         detections = self.net.Detect(cuda_img, width, height)
@@ -89,22 +89,44 @@ class PerceptionMan:
 
 
 
-# Test Script
+# Test Script for demo 1
 if __name__ == '__main__':
     source = CSICamera()
     perception = PerceptionMan(threshold=0.3)
     display = jetson.utils.glDisplay()
 
+    # Detect objects in first frame
+    first_frame, width, height = source.get_frame()
+    detections, detections_img = perception.detect_objects(first_frame, width, height)
+
+    # Track the human in the frame
+    for detection in detections:
+        if detection.ClassID == 1:
+            target = detection
+            break
+
+    initial_bbox = BoundingBox(left=target.Left, top=target.Top, right=target.Right, bottom=target.Bottom)
+    success = perception.initialize_tracker(first_frame, initial_bbox)
+
     while display.IsOpen():
         last_time = time.time()
-
         frame, frame_width, frame_height = source.get_frame()
-        detections, result_img = perception.detect_objects(frame, frame_width, frame_height)
 
-        display.RenderOnce(result_img, frame_width, frame_height)
+        success, optical_flow, new_bbox = perception.track_object_in_new_frame(frame)
+
+        if success:
+            p1 = new_bbox.top_left
+            p2 = new_bbox.bottom_right
+            cv2.rectangle(frame, p1, p2, (255, 0, 0), 2)
+        else:
+            print("Tracking error")
+
+        # Display tracking results
+        cuda_frame = ImageSource.rgb2crgba(frame)
+        display.RenderOnce(cuda_frame, frame_width, frame_height)
 
         fps = 1 / (time.time() - last_time)
-        display.SetTitle("Network {:.0f} FPS".format(fps))
+        display.SetTitle("{:.0f} FPS".format(fps))
 
     source.close()
 
