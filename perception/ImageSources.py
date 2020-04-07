@@ -45,29 +45,33 @@ class ImageSource:
         return cuda_frame
 
 
-class Camera(ImageSource):
+class CSICamera(ImageSource):
     """
     Defines an image source from the Jetson Nano's MIPI CSI camera.
     List available camera using v4l20ctl --list-devices.
     """
 
-    def __init__(self, device_file='dev/video0'):
-        self.camera = jetson.utils.gstCamera(1280, 720, device_file)
+    def __init__(self, capture_width=1280, capture_height=720, framerate=120, flip_method=0):
+        gstreamer_pipeline = "nvarguscamerasrc ! video/x-raw(memory:NVMM), " \
+        "width=(int)%d, height=(int)%d, format=(string)NV12, framerate=(fraction)%d/1 ! " \
+        "nvvidconv flip-method=%d ! videoconvert ! video/x-raw, format=(string)BGR ! appsink" \
+        % (capture_width, capture_height, framerate, flip_method)
 
+        self.camera = cv2.VideoCapture(gstreamer_pipeline, cv2.CAP_GSTREAMER)
 
     def get_frame(self):
-        """
-        NOTE: Directly returns RGBA image inside of CUDA capsule, no need to transform
-        upon return. #TODO: Need to change this to return standard image in order to do tracking.
-        """
-        # Capture frame and convert it to float4 RGBA.
-        img, width, height = self.camera.CaptureRGBA()
-        return img, width, height
+        success, frame = self.camera.read()
+
+        if not success:
+            raise Exception('Could not read from camera')
+
+        height, width = frame.shape[:2]
+
+        return frame, width, height
 
 
     def close(self):
-        # No deallocation necessary
-        pass
+        self.camera.release()
 
 
 class LocalVideo(ImageSource):
@@ -94,9 +98,9 @@ class LocalVideo(ImageSource):
         self.video.release()
 
 
-class StillImage(ImageSource):
+class LocalImage(ImageSource):
     """
-    Defines an image source from a JPEG image.
+    Defines an image source from a locally stored still image.
     Res argument in constructor resizes image to specified resolution (or 720p by default).
     """
 
@@ -119,3 +123,4 @@ class StillImage(ImageSource):
     def close(self):
         # No deallocation necessary
         pass
+
