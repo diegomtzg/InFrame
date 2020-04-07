@@ -4,7 +4,7 @@ import jetson.utils  # Camera and display helper methods.
 import cv2
 import time
 
-from ImageSources import ImageSource, LocalVideo, StillImage, Camera
+from ImageSources import ImageSource, LocalVideo, LocalImage, CSICamera
 from PerceptionUtils import BoundingBox
 
 class PerceptionMan:
@@ -29,14 +29,19 @@ class PerceptionMan:
         """
         Detects objects in a given image according to the confidence threshold
         specified in the constructor. Overlays results on input image by default.
-        :param image: The input image.
+        :param image: The input image in standard RGB space.
         :param width: Width of the input image.
         :param height: Height of the input image.
-        :return: A list of the detected object bounding boxes (type jetson.inference.detectNet.Detection)
+        :return detections: A list of the detected object bounding boxes (type jetson.inference.detectNet.Detection)
+        :return result_img: CUDA rgba image with object detection results overlaid
         """
+        # Transform image into RGBA space and place into a cuda container since object detection model expects it.
+        cuda_img = ImageSource.RGB_to_cudaRGBA(image)
+
         # Detect objects in a given image and overlay results on top of it.
-        detections = self.net.Detect(image, width, height)
-        return detections
+        detections = self.net.Detect(cuda_img, width, height)
+
+        return detections, cuda_img
 
 
     def initialize_tracker(self, first_frame, bbox):
@@ -86,44 +91,20 @@ class PerceptionMan:
 
 # Test Script
 if __name__ == '__main__':
-    source = LocalVideo('/home/diego/Desktop/InFrame/perception/tests/moving_easy.mp4')
-    first_frame, width, height = source.get_frame()
+    source = CSICamera()
+    perception = PerceptionMan(threshold=0.3)
+    display = jetson.utils.glDisplay()
 
-    # Detect objects in the first frame.
-    perception = PerceptionMan(threshold=0.5)
-    cuda_frame = ImageSource.RGB_to_cudaRGBA(first_frame)
-    detections = perception.detect_objects(cuda_frame, width, height)
-
-    # Choose the human (me).
-    for detection in detections:
-        if detection.ClassID == 1:
-            target = detection
-
-    initial_bbox = BoundingBox(left=target.Left, top=target.Top, right=target.Right, bottom=target.Bottom)
-    success = perception.initialize_tracker(first_frame, initial_bbox)
-
-    while True:
+    while display.IsOpen():
         last_time = time.time()
 
         frame, frame_width, frame_height = source.get_frame()
-        success, optical_flow, new_bbox = perception.track_object_in_new_frame(frame)
+        detections, result_img = perception.detect_objects(frame, frame_width, frame_height)
 
-        if success:
-            p1 = new_bbox.top_left
-            p2 = new_bbox.bottom_right
-            cv2.rectangle(frame, p1, p2, (0, 0, 255), 1)
-        else:
-            print("Tracking error.")
-            cv2.putText(frame, "Tracking failure detected", (100, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
-
-        # Display result
-        cv2.imshow("Tracking", frame)
+        display.RenderOnce(result_img, frame_width, frame_height)
 
         fps = 1 / (time.time() - last_time)
-        print(fps) # Note: 2-3 FPS using CSRT (works great), 20 FPS using MOSSE (loses me).
-
-        # Exit if ESC pressed
-        if cv2.waitKey(1) & 0xff == 27:
-            break
+        display.SetTitle("Network {:.0f} FPS".format(fps))
 
     source.close()
+
