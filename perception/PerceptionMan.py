@@ -4,7 +4,7 @@ import jetson.utils  # Camera and display helper methods.
 import cv2
 import time
 
-from ImageSources import ImageSource, LocalVideo, LocalImage, CSICamera
+from ImageSources import ImageSource, VideoStream, LocalVideo, LocalImage, CSICamera
 from PerceptionUtils import BoundingBox
 
 class PerceptionMan:
@@ -89,44 +89,23 @@ class PerceptionMan:
 
 
 
-# Test Script for demo 1
+# Test Script
 if __name__ == '__main__':
-    source = CSICamera()
-    perception = PerceptionMan(threshold=0.3)
-    display = jetson.utils.glDisplay()
+    source = CSICamera(sensor_mode=3)
 
-    # Detect objects in first frame
-    first_frame, width, height = source.get_frame()
-    detections, detections_img = perception.detect_objects(first_frame, width, height)
-
-    # Track the human in the frame
-    for detection in detections:
-        if detection.ClassID == 1:
-            target = detection
-            break
-
-    initial_bbox = BoundingBox(left=target.Left, top=target.Top, right=target.Right, bottom=target.Bottom)
-    success = perception.initialize_tracker(first_frame, initial_bbox)
-
-    while display.IsOpen():
+    while True:
         last_time = time.time()
         frame, frame_width, frame_height = source.get_frame()
 
-        success, optical_flow, new_bbox = perception.track_object_in_new_frame(frame)
+        cv2.imshow("CSI Camera", frame)
 
-        if success:
-            p1 = new_bbox.top_left
-            p2 = new_bbox.bottom_right
-            cv2.rectangle(frame, p1, p2, (255, 0, 0), 2)
-        else:
-            print("Tracking error")
+        # Processor yield time to allow for multitasking.
+        keyCode = cv2.waitKey(1)
 
-        # Display tracking results
-        cuda_frame = ImageSource.rgb2crgba(frame)
-        display.RenderOnce(cuda_frame, frame_width, frame_height)
+        # Stop the program on the ESC key
+        if keyCode & 0xFF == 27:
+            break
 
         fps = 1 / (time.time() - last_time)
-        display.SetTitle("{:.0f} FPS".format(fps))
-
-    source.close()
+        print(fps)
 

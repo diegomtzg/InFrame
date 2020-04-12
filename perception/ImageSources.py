@@ -54,35 +54,60 @@ class VideoStream(ImageSource):
     or from the camera). Small modifications from imutils' FileVideoStream class.
     """
 
-    def __init__(self, path, transform=None, queue_size=128):
-        self.source = cv2.VideoCapture(path)
+    def __init__(self, path=None, transform=None, queue_size=128):
+        # Path not set when instantiating from camera (see from_camera class method)
+        if path is not None:
+            self.source = cv2.VideoCapture(path)
+
         self.queue = Queue(maxsize=queue_size)
         self.stopped = False
         self.transform = transform
 
         # VideoStream's thread runs update function to continuously read and store input frames.
-        self.thread = Thread(target=self.update, args=())
+        self.thread = Thread(target=self.update)
         self.thread.daemon = True
 
 
     @classmethod
-    def from_camera(cls, capture_width = 1280, capture_height = 720, framerate = 120, flip_method = 0):
+    def from_camera(cls, sensor_id=0, sensor_mode=3, flip_method=0, display_width=1280, display_height=720):
         """
+        Call as stream = VideoStream.from_camera(...)
         Builds a video stream from the Jetson Nano's MIPI CSI camera.
         List available camera using v4l2-ctl --list-devices.
-        """
-        gstreamer_pipeline = "nvarguscamerasrc ! video/x-raw(memory:NVMM), " \
-                             "width=(int)%d, height=(int)%d, format=(string)NV12, framerate=(fraction)%d/1 ! " \
-                             "nvvidconv flip-method=%d ! videoconvert ! video/x-raw, format=(string)BGR ! appsink" \
-                             % (capture_width, capture_height, framerate, flip_method)
+        NOTE: If showing video, mode 2 is best since display is capped at about 30 FPS.
 
-        cls.source = cv2.VideoCapture(gstreamer_pipeline, cv2.CAP_GSTREAMER)
-        return cls
+        :param sensor_id: Selects the camera (0 or 1 on Jetson Nano B01)
+        :param sensor_mode: Sets resolution and frame rate on camera sensor.
+            Sensor modes for our CSI Picam:
+            [0] 3264 x 2464; 21 fps
+            [1] 3264 x 1848; 28 fps
+            [2] 1920 x 1080; 30 fps
+            [3] 1280 x 720; 60 fps
+            [4] 1280 x 720; 120 fps
+        """
+
+        gstreamer_pipeline = "nvarguscamerasrc sensor_id=%d sensor_mode=%d ! " \
+                             "video/x-raw(memory:NVMM) ! " \
+                             "nvvidconv flip-method=%d ! " \
+                             "video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! " \
+                             "videoconvert ! " \
+                             "video/x-raw, format=(string)BGR ! appsink" \
+                             % (sensor_id, sensor_mode, flip_method, display_width, display_height)
+
+
+
+        class_object = cls()
+        class_object.source = cv2.VideoCapture(gstreamer_pipeline, cv2.CAP_GSTREAMER)
+        return class_object
 
 
     def start(self):
-        # Start reading frames from video stream.
+        """
+        Starts reading frames from video stream.
+        Returns instance to chain together with constructor.
+        """
         self.thread.start()
+        return self
 
 
     def update(self):
@@ -113,7 +138,11 @@ class VideoStream(ImageSource):
 
 
     def get_frame(self):
-        return self.queue.get()
+        # Dequeue and return frame.
+        frame = self.queue.get()
+        height, width = frame.shape[:2]
+
+        return frame, width, height
 
 
     def more(self):
@@ -144,14 +173,26 @@ class VideoStream(ImageSource):
 class CSICamera(ImageSource):
     """
     Defines an image source from the Jetson Nano's MIPI CSI camera.
-    List available camera using v4l20ctl --list-devices.
+    List available camera using v4l2-ctl --list-devices.
+
+    :param sensor_id: Selects the camera (0 or 1 on Jetson Nano B01)
+    :param sensor_mode: Sets resolution and frame rate on camera sensor.
+        Sensor modes for our CSI Picam:
+        [0] 3264 x 2464; 21 fps
+        [1] 3264 x 1848; 28 fps
+        [2] 1920 x 1080; 30 fps
+        [3] 1280 x 720; 60 fps
+        [4] 1280 x 720; 120 fps
     """
 
-    def __init__(self, capture_width=1280, capture_height=720, framerate=120, flip_method=0):
-        gstreamer_pipeline = "nvarguscamerasrc ! video/x-raw(memory:NVMM), " \
-        "width=(int)%d, height=(int)%d, format=(string)NV12, framerate=(fraction)%d/1 ! " \
-        "nvvidconv flip-method=%d ! videoconvert ! video/x-raw, format=(string)BGR ! appsink" \
-        % (capture_width, capture_height, framerate, flip_method)
+    def __init__(self, sensor_id=0, sensor_mode=3, flip_method=0, display_width=1280, display_height=720):
+        gstreamer_pipeline = "nvarguscamerasrc sensor_id=%d sensor_mode=%d ! "\
+                             "video/x-raw(memory:NVMM) ! "\
+                             "nvvidconv flip-method=%d ! "\
+                             "video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! "\
+                             "videoconvert ! "\
+                             "video/x-raw, format=(string)BGR ! appsink" \
+                             % (sensor_id, sensor_mode, flip_method, display_width, display_height)
 
         self.camera = cv2.VideoCapture(gstreamer_pipeline, cv2.CAP_GSTREAMER)
 
