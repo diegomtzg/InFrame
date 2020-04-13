@@ -23,6 +23,7 @@ class PerceptionMan:
         self.tracker = cv2.TrackerCSRT_create()
         # self.tracker = cv2.TrackerMOSSE_create()
         # self.tracker = cv2.TrackerMedianFlow_create()
+        pass
 
 
     def detect_objects(self, image, width, height):
@@ -86,8 +87,8 @@ class PerceptionMan:
 
 # Test Script
 if __name__ == '__main__':
-    source = LocalVideo('/home/diego/Desktop/InFrame/perception/tests/moving_easy.mp4')
-    first_frame, width, height = source.get_frame()
+    # source = LocalVideo('/home/diego/Desktop/InFrame/perception/tests/moving_easy.mp4')
+    # first_frame, width, height = source.get_frame()
 
     # Detect objects in the first frame.
     perception = PerceptionMan(threshold=0.5)

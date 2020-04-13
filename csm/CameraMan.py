@@ -1,16 +1,16 @@
-import cv2
+# import cv2
 
-class CameraMan(Object):
+class CameraMan():
 
     def __init__(self, sourcePath):
-        updateVideoObject(sourcePath)
+        self.updateVideoObject(sourcePath)
 
     def updateVideoObject(self, sourcePath):
-        self.vid = cv2.VideoCapture(sourcePath)
+        # self.vid = cv2.VideoCapture(sourcePath)
         self.count = 0
         self.success = 1
 
-    def captureFrame(self):
+    def capture(self):
         if (self.success):
             self.success, image = self.vid.read()
             self.count += 1
@@ -21,7 +21,7 @@ class CameraMan(Object):
 
 if __name__ == '__main__':
     cam = CameraMan("../testData/testVideoTiny.mp4")
-    image, count = cam.captureFrame()
+    image, count = cam.capture()
     if count != -1:
         cv2.imwrite("frame%d.jpg" % count, image)
     else:
