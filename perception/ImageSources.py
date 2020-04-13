@@ -1,16 +1,13 @@
 import jetson.utils
 
 import cv2
-from threading import Thread
-from queue import Queue
-import time
 
 class ImageSource:
     """
     Base class definition/interface for an image source.
     """
 
-    def get_frame(self):
+    def getFrame(self):
         """
         Returns a single frame from the image source, as well as its width and height.
         args: None
@@ -39,13 +36,13 @@ class ImageSource:
         """
 
         # Add alpha channel (opacity) to image since network expects RGBA image.
-        rgba_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2RGBA)
+        rgbaFrame = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2RGBA)
 
         # Convert image to cuda memory capsule (pycapsule) object to pass
         # memory efficiently (expected by network detect method).
-        cuda_frame = jetson.utils.cudaFromNumpy(rgba_frame)
+        cudaFrame = jetson.utils.cudaFromNumpy(rgbaFrame)
 
-        return cuda_frame
+        return cudaFrame
 
 
 class CSICamera(ImageSource):
@@ -64,7 +61,7 @@ class CSICamera(ImageSource):
     """
 
     def __init__(self, sensor_id=0, sensor_mode=3, flip_method=0, display_width=1280, display_height=720):
-        gstreamer_pipeline = "nvarguscamerasrc sensor_id=%d sensor_mode=%d ! "\
+        gstreamerPipeline = "nvarguscamerasrc sensor_id=%d sensor_mode=%d ! "\
                              "video/x-raw(memory:NVMM) ! "\
                              "nvvidconv flip-method=%d ! "\
                              "video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! "\
@@ -72,9 +69,9 @@ class CSICamera(ImageSource):
                              "video/x-raw, format=(string)BGR ! appsink" \
                              % (sensor_id, sensor_mode, flip_method, display_width, display_height)
 
-        self.camera = cv2.VideoCapture(gstreamer_pipeline, cv2.CAP_GSTREAMER)
+        self.camera = cv2.VideoCapture(gstreamerPipeline, cv2.CAP_GSTREAMER)
 
-    def get_frame(self):
+    def getFrame(self):
         success, frame = self.camera.read()
 
         if not success:
@@ -98,7 +95,7 @@ class LocalVideo(ImageSource):
         self.video = cv2.VideoCapture(path)
 
 
-    def get_frame(self):
+    def getFrame(self):
         success, frame = self.video.read()
 
         if not success:
@@ -129,7 +126,7 @@ class LocalImage(ImageSource):
             self.img = cv2.resize(self.img, res, interpolation=cv2.INTER_AREA)
 
 
-    def get_frame(self):
+    def getFrame(self):
         height, width = self.img.shape[:2]
 
         return self.img, width, height
