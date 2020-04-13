@@ -1,10 +1,11 @@
-import jetson.inference  # Python bindings from TensorRT C++ Libraries.
-import jetson.utils  # Camera and display helper methods.
+import jetson.inference
+import jetson.utils
+from imutils.video import FPS
 
 import cv2
 import time
 
-from ImageSources import ImageSource, VideoStream, LocalVideo, LocalImage, CSICamera
+from ImageSources import ImageSource, LocalVideo, LocalImage, CSICamera
 from PerceptionUtils import BoundingBox
 
 class PerceptionMan:
@@ -92,20 +93,28 @@ class PerceptionMan:
 # Test Script
 if __name__ == '__main__':
     source = CSICamera(sensor_mode=3)
+    fps = FPS().start()
 
-    while True:
-        last_time = time.time()
-        frame, frame_width, frame_height = source.get_frame()
+    try:
+        while True:
+            frame, frame_width, frame_height = source.get_frame()
 
-        cv2.imshow("CSI Camera", frame)
+            cv2.imshow("CSI Camera", frame)
 
-        # Processor yield time to allow for multitasking.
-        keyCode = cv2.waitKey(1)
+            # Processor yield time to allow for multitasking.
+            keyCode = cv2.waitKey(1)
 
-        # Stop the program on the ESC key
-        if keyCode & 0xFF == 27:
-            break
+            # Stop the program on the ESC key
+            if keyCode & 0xFF == 27:
+                break
 
-        fps = 1 / (time.time() - last_time)
-        print(fps)
+            fps.update()
+    finally:
+        # Benchmark performance
+        fps.stop()
+        print("Approx FPS: %.2f" % fps.fps())
+
+        # Terminate resources
+        source.close()
+        cv2.destroyAllWindows()
 
