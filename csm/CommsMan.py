@@ -24,9 +24,12 @@ class CommsMan():
         External function to terminate CommsMan thread operations.
         """
         try:
-            self.terminateComms.put(-1)
+            self.terminateComms.put(-1, block=False)
             return 0
         except:
+            # If user spams terminateCommsMan, this will disable holding
+            # the system up, handling exception raised by terminateComms
+            # Queue being full during time of insertion.
             return -1
 
     def simulateReceiveBT(self, message):

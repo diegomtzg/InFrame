@@ -10,9 +10,6 @@ from MotorMan import MotorMan
 from CameraMan import CameraMan
 from PerceptionMan import PerceptionMan
 
-# from ImageSources import ImageSource, LocalVideo, StillImage, Camera
-# from PerceptionUtils import BoundingBox
-
 import queue
 import threading
 import time
@@ -68,12 +65,15 @@ class SystemMan():
                 # If msg commands new target selection
                 if (msg == "Terminate"):
                     break
+
+                # A valid command has been received from remote interface
+                # for SysMan to start recording a specific target
                 elif (msg != ''):
-                    # Restart PerceptionMan.
+                    # TODO: Re-instantiate CameraMan to update source
 
-                    # Detect objects in the first frame.
+                    # TODO: Detect objects in the first frame.
 
-                    # Choose the target.
+                    # TODO: Choose the human (me).
 
                     # If target already being tracked
                     if self.inFrame:
@@ -87,6 +87,7 @@ class SystemMan():
                         stoThread = threading.Thread(target=(self.sto.launch))
                         stoThread.start()
 
+            # Main Tracking Code: Target already selected - iterate & adjust motors
             elif self.inFrame:
                 # Request frame from CameraMan
                 frame, frame_width, frame_height = self.cam.capture()
@@ -100,7 +101,7 @@ class SystemMan():
                 if success:
                     # Generate bounding box
                     # Send optical flow to MotorMan
-                    self.mot.adjustOrientation(optical_flow)
+                    self.mot.processOpticalFlowCommand(optical_flow)
                 else:
                     # Indicate failure
                     print("SystemMan    : Tracking error.")

@@ -1,5 +1,4 @@
 import queue
-# import cv2
 import numpy as np
 import os
 from os.path import isfile, join
@@ -35,6 +34,8 @@ class StorageMan():
 
     def compileInternal(self):
         outputPath, fps = self.compileQ.get()
+
+        # # For bringing together frames and saving video [WIP - Saved for later date once MVP reached]
         # output = cv2.VideoWriter(outputPath, cv2.VideoWriter_fourcc(*'DIVX'), fps, (width, height))
         # for frame in range(len(self.frames)):
         #     output.write(frame)

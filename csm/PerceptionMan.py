@@ -23,7 +23,6 @@ class PerceptionMan:
         self.tracker = cv2.TrackerCSRT_create()
         # self.tracker = cv2.TrackerMOSSE_create()
         # self.tracker = cv2.TrackerMedianFlow_create()
-        pass
 
 
     def detect_objects(self, image, width, height):
