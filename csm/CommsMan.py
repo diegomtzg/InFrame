@@ -5,13 +5,21 @@ import time
 class CommsMan():
 
     def __init__(self, commsQueue, termCommsQueue):
+        # Sending data CommsMan --> SystemMan
         self.sysQueueSend = commsQueue
+        # Sending data SystemMan --> CommsMan
         self.sysQueueRecv = queue.Queue(maxsize=1)
+
+        # Queue from which Bluetooth cmds are simulated as being received
         self.btQueue = queue.Queue(maxsize=1)
+
+        # Queue indicating CommsMan thread to terminate
         self.terminateComms = queue.Queue(maxsize=1)
+
+        # Array representing log of messages marked to send out to remote interface
         self.testSendOutput = []
 
-    def sendMessageToRemote(self, message):
+    def SendMessageToRemote(self, message):
         """
         External function which enables users to message CommsMan to send
         message to the remote interface via Bluetooth for user operation.
@@ -19,9 +27,10 @@ class CommsMan():
         """
         self.sysQueueRecv.put(message)
 
-    def terminateCommsMan(self):
+    def TerminateCommsMan(self):
         """
         External function to terminate CommsMan thread operations.
+        :return: Int 0 indicating no error terminating CommsMan, -1 indicating error (e.g. termination already signaled)
         """
         try:
             self.terminateComms.put(-1, block=False)
@@ -32,16 +41,25 @@ class CommsMan():
             # Queue being full during time of insertion.
             return -1
 
-    def simulateReceiveBT(self, message):
+    def SimulateReceiveBT(self, message):
+        """
+        External function for simulating/testing CommsMan's ability to receive Bluetooth msgs
+        and send them to SystemMan.
+        :param message: Contents of message being received via "Bluetooth" (String)
+        """
         try:
             self.btQueue.put(message, timeout=10)
         except:
             print("SRBT         : Bluetooth-Receive queue insertion blocked > 10s on: %s" % message)
 
-    def simulateLogBluetooth(self):
+    def SimulateLogBluetooth(self):
+        """
+        External function for printing the array log simulating messages to be sent out via Bluetooth.
+        :return: String containing log contents
+        """
         return str(self.testSendOutput)
 
-    def launch(self):
+    def Launch(self):
         # print("CommsMan     : Main thread launching.")
         while self.terminateComms.empty():
             if not self.btQueue.empty():

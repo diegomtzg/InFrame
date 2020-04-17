@@ -1,14 +1,8 @@
-import CommsMan as CommsMan
-import StorageMan as StorageMan
-import MotorMan as MotorMan
-import CameraMan as CameraMan
-import PerceptionMan as PerceptionMan
-
 from CommsMan import CommsMan
 from StorageMan import StorageMan
 from MotorMan import MotorMan
 from CameraMan import CameraMan
-from PerceptionMan import PerceptionMan
+# from PerceptionMan import PerceptionMan
 
 import queue
 import threading
@@ -23,34 +17,48 @@ class SystemMan():
         self.currVideo = 0
 
         # Instantiate Subsystems
-        self.per = PerceptionMan(threshold=0.5)
+        # self.per = PerceptionMan(threshold=0.5)
         self.cam = CameraMan("../testData/testOutput.mp4")
         self.mot = MotorMan()
         
-
         self.sto = StorageMan()
         self.comQ, self.comT = queue.Queue(maxsize=1), queue.Queue(maxsize=1)
         self.com = CommsMan(self.comQ, self.comT)
 
-    def sendMessageToRemote(self, message):
-        self.com.sendMessageToRemote(message)
+    def SendMessageToRemote(self, message):
+        """
+        API for indicating to SystemMan to send a message to the remote interface.
+        :param message: String message to be sent.
+        """
+        self.com.SendMessageToRemote(message)
 
-    def terminateCommsMan(self):
-        return self.com.terminateCommsMan()
+    def SimulateReceiveBT(self, message):
+        """
+        API for simulating the CSM's receiving of a Bluetooth message.
+        :param message: String message to be received and operated.
+        """
+        self.com.SimulateReceiveBT(message)
 
-    def simulateReceiveBT(self, message):
-        self.com.simulateReceiveBT(message)
-
-    def simulateLogBluetooth(self):
-        return self.com.simulateLogBluetooth()
+    def SimulateLogBluetooth(self):
+        """
+        API for retrieving the simulated log of messages marked to be sent over Bluetooth.
+        :return: String representing message log.
+        """
+        return self.com.SimulateLogBluetooth()
 
     def SHUTDOWN(self):
-        self.simulateReceiveBT("Terminate")
+        """
+        API for signaling entire system to shut down (including all threads for CSM modules).
+        """
+        self.SimulateReceiveBT("Terminate")
 
-    def launch(self):
+    def Launch(self):
+        """
+        Main function for launching the System.
+        """
         # Instantiate and launch in threads: CommsMan, StorageMan
-        comThread = threading.Thread(target=(self.com.launch))
-        stoThread = threading.Thread(target=(self.sto.launch))
+        comThread = threading.Thread(target=(self.com.Launch))
+        stoThread = threading.Thread(target=(self.sto.Launch))
         comThread.start()
         stoThread.start()
 
@@ -78,7 +86,7 @@ class SystemMan():
                     # If target already being tracked
                     if self.inFrame:
                         # Signal to StorageMan to compile frames.
-                        self.sto.compile("../testData/video%d.mp4" % self.currVideo, 30)
+                        self.sto.Compile("../testData/video%d.mp4" % self.currVideo, 30)
                         self.currVideo += 1
                         stoThread.join()
                         
@@ -96,7 +104,8 @@ class SystemMan():
                 self.sto.appendFrame(frame, frame_width, frame_height)
 
                 # Track object in new frame
-                success, optical_flow, new_bbox = self.per.track_object_in_new_frame(frame)
+                # success, optical_flow, new_bbox = self.per.track_object_in_new_frame(frame)
+                success, optical_flow, new_bbox = mockTrackObjectInNewFrame(frame)
 
                 if success:
                     # Generate bounding box
@@ -107,29 +116,34 @@ class SystemMan():
                     print("SystemMan    : Tracking error.")
 
         # Terminate CommsMan & rejoin thread.
-        if (self.com.terminateCommsMan() == -1):
+        if (self.com.TerminateCommsMan() == -1):
             raise TimeoutError
         comThread.join()
 
         # Signal to StorageMan to compile frames, terminate thread.
-        self.sto.compile("../testData/video%d.mp4" % self.currVideo, 30)
+        self.sto.Compile("../testData/video%d.mp4" % self.currVideo, 30)
         stoThread.join()        
+
+
+def mockTrackObjectInNewFrame(frame):
+    success, optical_flow, new_bbox = 0, 0, 0
+    return success, optical_flow, new_bbox
 
 
 if __name__ == '__main__':
     # test SystemMan interactions
     sys = SystemMan()
-    sysThread = threading.Thread(target=sys.launch)
+    sysThread = threading.Thread(target=sys.Launch)
     sysThread.start()
 
     start_time = time.time()
 
     # Simulate message send requests to remote
-    sys.sendMessageToRemote("Target Selection Alternatives")
-    sys.sendMessageToRemote("Bounding Boxes for Targets")
+    sys.SendMessageToRemote("Target Selection Alternatives")
+    sys.SendMessageToRemote("Bounding Boxes for Targets")
 
     # Simulate message retrieval from "Bluetooth" channel
-    sys.simulateReceiveBT("Target Selection")
+    sys.SimulateReceiveBT("Target Selection")
 
     # Confirm message retrieval
     # testOutputBT = sys.simulateLogBluetooth()

@@ -4,7 +4,7 @@ class MotorMan():
         self.orientationTilt = 0
         self.orientationTurn = 0
 
-    def processOpticalFlowCommand(self, optical_flow):
+    def ProcessOpticalFlowCommand(self, optical_flow):
         """
         Converts optical flow data (vectors) into deltas motor must
         turn to re-center camera view.

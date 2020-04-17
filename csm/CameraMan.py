@@ -3,20 +3,15 @@
 class CameraMan():
 
     def __init__(self, sourcePath):
-        self.updateVideoObject(sourcePath)
+        # Initialize LocalVideo
+        pass
 
-    def updateVideoObject(self, sourcePath):
-        # self.vid = cv2.VideoCapture(sourcePath)
-        self.count = 0
-        self.success = 1
-
-    def capture(self):
-        if (self.success):
-            self.success, image = self.vid.read()
-            self.count += 1
-            return image, self.count-1
-        else:
-            return None, -1
+    def Capture(self):
+        """
+        API function call for pulling the next frame from pre-loaded LocalVideo source.
+        :return: Frame data
+        """
+        pass
 
 
 if __name__ == '__main__':

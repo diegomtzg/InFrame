@@ -12,13 +12,13 @@ class StorageMan():
         self.width = -1
         self.height = -1
 
-    def appendFrame(self, frame, frame_width, frame_height):
+    def AppendFrame(self, frame, frame_width, frame_height):
         self.recvFrameQ.put((frame, frame_width, frame_height))
 
-    def compile(self, outputPath, fps):
+    def Compile(self, outputPath, fps):
         self.compileQ.put((outputPath, fps))
 
-    def launch(self):
+    def Launch(self):
         """
         Launches the Storage Manager. Loop will repeatedly listen to concurrent
         frame insertions. When a compile command is given, 
@@ -35,7 +35,7 @@ class StorageMan():
     def compileInternal(self):
         outputPath, fps = self.compileQ.get()
 
-        # # For bringing together frames and saving video [WIP - Saved for later date once MVP reached]
+        # # [WIP] For bringing together frames and saving video [Saved for later date once MVP reached]
         # output = cv2.VideoWriter(outputPath, cv2.VideoWriter_fourcc(*'DIVX'), fps, (width, height))
         # for frame in range(len(self.frames)):
         #     output.write(frame)
