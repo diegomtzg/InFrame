@@ -1,13 +1,17 @@
-from CommsMan import CommsMan
-from StorageMan import StorageMan
-from MotorMan import MotorMan
-from CameraMan import CameraMan
-# from PerceptionMan import PerceptionMan
-
 import queue
 import threading
 import time
 import sys
+
+# Add support for imports from perception directory.
+sys.path.append("../perception")
+
+from CommsMan import CommsMan
+from StorageMan import StorageMan
+from MotorMan import MotorMan
+from CameraMan import CameraMan
+from PerceptionMan import PerceptionMan
+
 
 class SystemMan():
 
@@ -17,10 +21,10 @@ class SystemMan():
         self.currVideo = 0
 
         # Instantiate Subsystems
-        # self.per = PerceptionMan(threshold=0.5)
-        self.cam = CameraMan("../testData/testOutput.mp4")
+        self.per = PerceptionMan()
+        self.cam = CameraMan()
         self.mot = MotorMan()
-        
+
         self.sto = StorageMan()
         self.comQ, self.comT = queue.Queue(maxsize=1), queue.Queue(maxsize=1)
         self.com = CommsMan(self.comQ, self.comT)
@@ -89,7 +93,7 @@ class SystemMan():
                         self.sto.Compile("../testData/video%d.mp4" % self.currVideo, 30)
                         self.currVideo += 1
                         stoThread.join()
-                        
+
                         # Relaunch CameraMan with new source
                         self.sto = CameraMan(msg)
                         stoThread = threading.Thread(target=(self.sto.launch))
@@ -122,13 +126,12 @@ class SystemMan():
 
         # Signal to StorageMan to compile frames, terminate thread.
         self.sto.Compile("../testData/video%d.mp4" % self.currVideo, 30)
-        stoThread.join()        
+        stoThread.join()
 
 
 def mockTrackObjectInNewFrame(frame):
     success, optical_flow, new_bbox = 0, 0, 0
     return success, optical_flow, new_bbox
-
 
 if __name__ == '__main__':
     # test SystemMan interactions

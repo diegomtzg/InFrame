@@ -1,23 +1,23 @@
-# import cv2
+from ImageSources import CSICamera
 
 class CameraMan():
+    """
+    Manager module for Jetson Nano's CSI Camera.
+    See CSICamera class in ImageSources for more information.
+    """
 
-    def __init__(self, sourcePath):
-        # Initialize LocalVideo
-        pass
+    def __init__(self):
+        self.camera = CSICamera()
 
     def Capture(self):
         """
-        API function call for pulling the next frame from pre-loaded LocalVideo source.
-        :return: Frame data
+        API function call for pulling the next frame from camera.
+        :returns: frame, width, height
         """
-        pass
+        return self.camera.getFrame()
 
-
-if __name__ == '__main__':
-    cam = CameraMan("../testData/testVideoTiny.mp4")
-    image, count = cam.capture()
-    if count != -1:
-        cv2.imwrite("frame%d.jpg" % count, image)
-    else:
-        print("Error: count = -1")
+    def Release(self):
+        """
+        Deallocates camera resources.
+        """
+        self.camera.close()
