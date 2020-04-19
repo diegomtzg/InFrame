@@ -16,12 +16,12 @@ class PerceptionMan:
     - conf: Minimum confidence threshold to qualify as a detected object (0.5 by default).
     """
 
+    # Number of frames before tracker is reset to account for accumulated error.
+    RESET_TRACKER_FREQ = 20
+
     def __init__(self, network='ssd-mobilenet-v2', threshold=0.5):
         # Load pre-trained object detection network.
         self.net = jetson.inference.detectNet(network=network, threshold=threshold)
-
-        # CSRT tracker yields higher tracking accuracy with slower throughput.
-        self.tracker = cv2.TrackerCSRT_create()
 
 
     def DetectObjects(self, image, width, height):
@@ -56,6 +56,11 @@ class PerceptionMan:
         # Tracker API uses width and height to define second point.
         width = x2 - x1
         height = y2 - y1
+
+        # CSRT tracker yields higher tracking accuracy with slower throughput.
+        # Since we are ussing MOSSE for higher throughput, we need to run object
+        # detection to recenter the tracker every certain number of frames.
+        self.tracker = cv2.TrackerMOSSE_create()
         success = self.tracker.init(firstFrame, (x1, y1, width, height))
 
         # Update current bounding box.
@@ -85,6 +90,45 @@ class PerceptionMan:
         self.currBoundingBox = newBbox
 
         return success, opticalFlow, newBbox
+
+
+    def FindClassInDetections(self, detectionsList, classID):
+        """
+        Finds the first bounding box pertaining to an object with a target classID
+        in a list of detection results.
+        Note: Class ID is an index into this list of classes:
+        https://github.com/dusty-nv/jetson-inference/blob/master/data/networks/ssd_coco_labels.txt
+        :param detectionsList: Results from object detection.
+        :param classID: target classID to look for.
+        :return: bounding box around target with specified classID or none if not found
+        """
+        target = None
+
+        for detection in detectionsList:
+            if detection.ClassID == classID:
+                target = detection
+
+        if target is None:
+            return None
+        else:
+            return BoundingBox(left=target.Left, top=target.Top, right=target.Right, bottom=target.Bottom)
+
+
+    def ResetTracker(self, frame, width, height, classID):
+        """
+        Re-initializes the tracker to center on a bounding box returned from
+        object detection with a given classID.
+        :param frame, width, height: Latest frame and frame metadata
+        :param classID: desired classID to recenter tracker on, there can only be one per frame
+        See FindClassInDetections method for more information on classID
+        """
+        print("Resetting tracker...")
+
+        detections, _ = perception.DetectObjects(frame, width, height)
+        resetBbox = perception.FindClassInDetections(detections, classID)
+
+        if resetBbox is not None:
+            perception.InitTracker(frame, resetBbox)
 
 
 
@@ -118,40 +162,46 @@ if __name__ == '__main__':
 
         # Since the remote interface isn't set up yet, this part simulates choosing one of the bounding boxes returned
         # from object detection (the classID is set manually here, assuming that the target is a human)
-        # Note: Class ID is an index into this list of classes:
-        # https://github.com/dusty-nv/jetson-inference/blob/master/data/networks/ssd_coco_labels.txt
-        for detection in detections:
-            if detection.ClassID == 1:
-                target = detection
-        initialBbox = BoundingBox(left=target.Left, top=target.Top, right=target.Right, bottom=target.Bottom)
+        # Once the remote interface works, we would extract the class ID from the selected bounding box and save it
+        # to reset the tracker every n frames. Here, we set it manually to 1 (person).
+        # See helper method for more info.
+        initialBbox = perception.FindClassInDetections(detections, classID=1)
 
         # Now that we have a bounding box returned from the "remote interface", we can initialize the
         # tracker using said bounding box.
         # Note: Here, we assume that the target hasn't moved from its original location since we are using that same
         # bounding box.
         frame, width, height = source.Capture()
-        success = perception.InitTracker(frame, initialBbox)
+        perception.InitTracker(frame, initialBbox)
+
+        # Count number of frames so we can reset tracker every n frames
+        framesSinceReset = 0
 
         # Now we can begin the main program/tracking loop.
         while True:
 
-            # TODO: Reset tracker every n frames using object detection
-
             # Get latest frame.
             frame, width, height = source.Capture()
 
+            if framesSinceReset == perception.RESET_TRACKER_FREQ:
+                # Reset tracker every n frames using object detection since it accumulates error over time
+                # Note: There can only be one human present per frame in this case
+                perception.ResetTracker(frame, width, height, classID=1)
+                framesSinceReset = 0
+
             # Track previously defined object in latest frame.
             success, opticalFlow, newBbox = perception.TrackObjectInNewFrame(frame)
+            framesSinceReset += 1
 
             if success:
-               # We can use the opticalFlow here (x, y) and send it to the motors.
-               # For now, we draw the latest bbox and print out the optical flow.
-               cv2.rectangle(frame, newBbox.topLeft, newBbox.bottomRight, (0, 0, 255), 2)
-               print(opticalFlow)
+                # We can use the opticalFlow here (x, y) and send it to the motors.
+                # For now, we draw the latest bbox and print out the optical flow.
+                cv2.rectangle(frame, newBbox.topLeft, newBbox.bottomRight, (0, 0, 255), 2)
+                print(opticalFlow)
             else:
                 # There was a tracking error, we need to handle it by resetting the tracker using
                 # object detection.
-                print("Tracking error. Resetting tracker...")
+                perception.ResetTracker(frame, width, height, classID=1)
 
             # For testing purposes, let's display the results on a window.
             cv2.imshow("Tracking Result", frame)
