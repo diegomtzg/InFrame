@@ -24,7 +24,7 @@ class PerceptionMan:
         self.tracker = cv2.TrackerCSRT_create()
 
 
-    def detectObjects(self, image, width, height):
+    def DetectObjects(self, image, width, height):
         """
         Detects objects in a given image according to the confidence threshold
         specified in the constructor. Overlays results on input image by default.
@@ -43,7 +43,7 @@ class PerceptionMan:
         return detections, cudaImg
 
 
-    def initTracker(self, firstFrame, bbox):
+    def InitTracker(self, firstFrame, bbox):
         """
         Initializes a CSRT tracker to track the object in the given bounding box.
         :param firstFrame: The first frame of the video in which the subject will be tracked.
@@ -64,15 +64,15 @@ class PerceptionMan:
         return success
 
 
-    def trackObjectInNewFrame(self, curr_frame):
+    def TrackObjectInNewFrame(self, currFrame):
         """
         Tracks the previously defined target (during initialization) in the current frame.
-        :param curr_frame: Current frame in which to look for target.
+        :param currFrame: Current frame in which to look for target.
         :return success:  True if tracking in the current frame succeeded, false otherwise.
         :return opticalFlow: Vector from the center of the previous bounding box to the current one (i.e. object movement).
         :return newBbox: New bounding box around target object.
         """
-        success, newBbox = self.tracker.update(curr_frame)
+        success, newBbox = self.tracker.update(currFrame)
 
         # Turn new bbox into our definition of a bbox (note: tracker's bbox uses width and height instead of a second point).
         width = newBbox[2]
@@ -81,46 +81,90 @@ class PerceptionMan:
                                right=newBbox[0] + width, bottom=newBbox[1] + height)
 
         # Calculate optical flow using the two most recent bboxes and update current bbox.
-        opticalFlow = self.currBoundingBox.vector_to(newBbox)
+        opticalFlow = self.currBoundingBox.VectorTo(newBbox)
         self.currBoundingBox = newBbox
 
         return success, opticalFlow, newBbox
 
 
 
-# Test Script
+# Outline of full system CSM if only perception code was running.
+
 if __name__ == '__main__':
-    source = CSICamera(sensor_mode=3)
+
+    # Something like this but for the CSM seeing perception modules
+    # is in SystemMan (so you can import anything from the perception dir)
+    import sys
+    sys.path.append("../csm")
+    from CameraMan import CameraMan
+
+    # If not path is specified, CameraMan instantiates a CSICamera image source.
+    source = CameraMan()
+
     perception = PerceptionMan()
-    display = jetson.utils.glDisplay()
 
+    # I put everything in a try block so that even when I interrupt the program
+    # with ctrl + c we still free the camera and all the other resources inside
+    # of the finally block.
     try:
-        fps = FPS().start()
+        # Here, the system is idle, waiting for a command from the remote interface.
+
+        # Once we get a command, we detect objects and send them back to the user so that
+        # they can select a target.
+        # Note: For info on the detections list returned from detectObjects, see jetson.inference.detectNet.Detection
+        # from here https://rawgit.com/dusty-nv/jetson-inference/python/docs/html/python/jetson.inference.html#detectNet
+        frame, width, height = source.Capture()
+        detections, _ = perception.DetectObjects(frame, width, height)
+
+        # Since the remote interface isn't set up yet, this part simulates choosing one of the bounding boxes returned
+        # from object detection (the classID is set manually here, assuming that the target is a human)
+        # Note: Class ID is an index into this list of classes:
+        # https://github.com/dusty-nv/jetson-inference/blob/master/data/networks/ssd_coco_labels.txt
+        for detection in detections:
+            if detection.ClassID == 1:
+                target = detection
+        initialBbox = BoundingBox(left=target.Left, top=target.Top, right=target.Right, bottom=target.Bottom)
+
+        # Now that we have a bounding box returned from the "remote interface", we can initialize the
+        # tracker using said bounding box.
+        # Note: Here, we assume that the target hasn't moved from its original location since we are using that same
+        # bounding box.
+        frame, width, height = source.Capture()
+        success = perception.InitTracker(frame, initialBbox)
+
+        # Now we can begin the main program/tracking loop.
         while True:
-            last_time = time.time()
-            frame, width, height = source.getFrame()
-            detections, result_img = perception.detectObjects(frame, width, height)
 
-            display.RenderOnce(result_img, width, height)
-            print("Elapsed Time: ", time.time() - last_time)
+            # TODO: Reset tracker every n frames using object detection
 
-            # For tracking
-            # cv2.imshow("CSI Camera", frame)
-            #
-            # # Processor yield time to allow for multitasking.
-            # keyCode = cv2.waitKey(1)
-            #
-            # # Stop the program on the ESC key
-            # if keyCode & 0xFF == 27:
-            #     break
+            # Get latest frame.
+            frame, width, height = source.Capture()
 
-            fps.update()
+            # Track previously defined object in latest frame.
+            success, opticalFlow, newBbox = perception.TrackObjectInNewFrame(frame)
+
+            if success:
+               # We can use the opticalFlow here (x, y) and send it to the motors.
+               # For now, we draw the latest bbox and print out the optical flow.
+               cv2.rectangle(frame, newBbox.topLeft, newBbox.bottomRight, (0, 0, 255), 2)
+               print(opticalFlow)
+            else:
+                # There was a tracking error, we need to handle it by resetting the tracker using
+                # object detection.
+                print("Tracking error. Resetting tracker...")
+
+            # For testing purposes, let's display the results on a window.
+            cv2.imshow("Tracking Result", frame)
+
+            # Processor yield time (in ms) to allow for multitasking.
+            keyCode = cv2.waitKey(1)
+
+            # Stop the program on the ESC key
+            if keyCode & 0xFF == 27:
+                 break
+
     finally:
-        # Benchmark performance
-        fps.stop()
-        print("Approx FPS: %.2f" % fps.fps())
-
         # Terminate resources
-        source.close()
+        source.Release()
         cv2.destroyAllWindows()
 

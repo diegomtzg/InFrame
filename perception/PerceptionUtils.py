@@ -10,7 +10,7 @@ class BoundingBox:
         self.center = ((left + right) / 2, (top + bottom) / 2)
 
 
-    def vector_to(self, otherBbox):
+    def VectorTo(self, otherBbox):
         """
         Calculates vector from center of this bbox to center of a different one.
         :param otherBbox: Second bbox

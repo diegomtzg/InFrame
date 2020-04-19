@@ -7,7 +7,7 @@ class ImageSource:
     Base class definition/interface for an image source.
     """
 
-    def getFrame(self):
+    def GetFrame(self):
         """
         Returns a single frame from the image source, as well as its width and height.
         args: None
@@ -16,7 +16,7 @@ class ImageSource:
         raise NotImplementedError
 
 
-    def close(self):
+    def Close(self):
         """
         Closes/deallocates an image source, if necessary.
         args: None
@@ -71,7 +71,7 @@ class CSICamera(ImageSource):
 
         self.camera = cv2.VideoCapture(gstreamerPipeline, cv2.CAP_GSTREAMER)
 
-    def getFrame(self):
+    def GetFrame(self):
         success, frame = self.camera.read()
 
         if not success:
@@ -82,7 +82,7 @@ class CSICamera(ImageSource):
         return frame, width, height
 
 
-    def close(self):
+    def Close(self):
         self.camera.release()
 
 
@@ -95,7 +95,7 @@ class LocalVideo(ImageSource):
         self.video = cv2.VideoCapture(path)
 
 
-    def getFrame(self):
+    def GetFrame(self):
         success, frame = self.video.read()
 
         if not success:
@@ -106,7 +106,7 @@ class LocalVideo(ImageSource):
         return frame, width, height
 
 
-    def close(self):
+    def Close(self):
         self.video.release()
 
 
@@ -126,13 +126,13 @@ class LocalImage(ImageSource):
             self.img = cv2.resize(self.img, res, interpolation=cv2.INTER_AREA)
 
 
-    def getFrame(self):
+    def GetFrame(self):
         height, width = self.img.shape[:2]
 
         return self.img, width, height
 
 
-    def close(self):
+    def Close(self):
         # No deallocation necessary
         pass
 
