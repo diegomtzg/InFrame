@@ -17,7 +17,7 @@ class PerceptionMan:
     """
 
     # Number of frames before tracker is reset to account for accumulated error.
-    RESET_TRACKER_FREQ = 20
+    RESET_TRACKER_FREQ = 40
 
     def __init__(self, network='ssd-mobilenet-v2', threshold=0.5):
         # Load pre-trained object detection network.

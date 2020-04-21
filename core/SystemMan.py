@@ -77,7 +77,6 @@ class SystemMan():
     def parseMsgForBoundingBox(self, msg):
         a = msg.split(";")
         l,t,r,b = int(a[0]), int(a[1]), int(a[2]), int(a[3])
-        print(msg)
 
         return BoundingBox(left=l, top=t, right=r, bottom=b)
 
