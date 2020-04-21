@@ -1,4 +1,4 @@
-from ImageSources import CSICamera, LocalVideo
+from utils.ImageSources import CSICamera, LocalVideo
 
 class CameraMan():
     """

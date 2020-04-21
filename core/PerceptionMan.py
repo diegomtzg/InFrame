@@ -5,8 +5,8 @@ from imutils.video import FPS
 import cv2
 import time
 
-from ImageSources import ImageSource, LocalVideo, LocalImage, CSICamera
-from PerceptionUtils import BoundingBox
+from utils.ImageSources import ImageSource, LocalVideo, LocalImage, CSICamera
+from utils.PerceptionUtils import BoundingBox
 
 class PerceptionMan:
     """
