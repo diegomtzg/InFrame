@@ -124,11 +124,11 @@ class PerceptionMan:
         """
         print("Resetting tracker...")
 
-        detections, _ = perception.DetectObjects(frame, width, height)
-        resetBbox = perception.FindClassInDetections(detections, classID)
+        detections, _ = self.DetectObjects(frame, width, height)
+        resetBbox = self.FindClassInDetections(detections, classID)
 
         if resetBbox is not None:
-            perception.InitTracker(frame, resetBbox)
+            self.InitTracker(frame, resetBbox)
 
 
 

@@ -63,10 +63,29 @@ class SystemMan():
         """
         self.SimulateReceiveBT("Terminate")
 
+    def compileFrames(self):
+        self.sto.Compile("../testData/video%d.mp4" % self.currVideo, 30)
+        self.stoThread.join()
+
+        self.currVideo += 1
+
+    def restartNewVideoStorage(self):
+        self.sto = StorageMan()
+        self.stoThread = threading.Thread(target=(self.sto.launch))
+        self.stoThread.start()
+
+    def parseMsgForBoundingBox(self, msg):
+        a = msg.split(";")
+        l,t,r,b = int(a[0]), int(a[1]), int(a[2]), int(a[3])
+        print(msg)
+
+        return BoundingBox(left=l, top=t, right=r, bottom=b)
+
     def Launch(self):
         """
         Main function for launching the System.
         """
+
         while self.running:
 
             if not self.comQ.empty():
@@ -74,6 +93,8 @@ class SystemMan():
                 msg = self.comQ.get()
 
                 print("Main         : received message: %s" % msg)
+
+                # TODO(@Ike): Gracefully handle unknown/invalid messages without crashing
 
                 # Shut down the system
                 if (msg == "Terminate"):
@@ -86,6 +107,7 @@ class SystemMan():
                         self.compileFrames()
 
                         # Relaunch CameraMan with new source
+                        # TODO(@Diego): Ask Ike about this
                         self.restartNewVideoStorage()
 
                         self.inFrame = False
@@ -98,7 +120,7 @@ class SystemMan():
                     # they can select a target.
                     # Note: For info on the detections list returned from detectObjects, see jetson.inference.detectNet.Detection
                     # from here https://rawgit.com/dusty-nv/jetson-inference/python/docs/html/python/jetson.inference.html#detectNet
-                    frame, width, height = self.cam.capture()
+                    frame, width, height = self.cam.Capture()
                     detections, _ = self.per.DetectObjects(frame, width, height)
 
                     # TODO(@Ike - once iOS working): Send {detections, frame, width, height} to Remote Interface
@@ -111,7 +133,7 @@ class SystemMan():
                     iBB = self.per.FindClassInDetections(detections, classID=1)
                     receivedSimStr = str(iBB.topLeft[0]) + ";" + str(iBB.topLeft[1]) + ";" + str(iBB.bottomRight[0]) + ";" + str(iBB.bottomRight[0])
                     self.SimulateReceiveBT(receivedSimStr)
-                
+
                 # Specific target selected, msg contains information about selected target
                 else:
                     self.inFrame = True
@@ -131,7 +153,7 @@ class SystemMan():
             # Main Tracking Code: Target already selected - iterate & adjust motors
             elif self.inFrame:
                 # Request frame from CameraMan
-                frame, frame_width, frame_height = self.cam.capture()
+                frame, frame_width, frame_height = self.cam.Capture()
 
                 if self.framesSinceReset == self.per.RESET_TRACKER_FREQ:
                     # Reset tracker every n frames using object detection since it accumulates error over time
@@ -156,18 +178,21 @@ class SystemMan():
                 # TODO(@Ike): Send frame data to StorageMan (@Diego should we leave storage for post-demo2? I say ay)
                 # self.sto.appendFrame(frame, frame_width, frame_height)
 
-                # TODO(@Diego): Another means of testing if frames are being received and processed (if printed opticalFlow is not enough)
+                # For testing purposes, display the results on a window.
+                cv2.imshow("Tracking Result", frame)
 
-                # # For testing purposes, let's display the results on a window.
-                # cv2.imshow("Tracking Result", frame)
+                # Processor yield time (in ms) to allow for multitasking.
+                keyCode = cv2.waitKey(1)
 
-                # # Processor yield time (in ms) to allow for multitasking.
-                # keyCode = cv2.waitKey(1)
+                # Stop the program on the ESC key
+                # TODO(@Ike): How to have this terminate every thread and free resources?
+                if keyCode & 0xFF == 27:
+                    break
 
-                # # Stop the program on the ESC key
-                # if keyCode & 0xFF == 27:
-                #     break
-
+                """
+                self.cam.Release()
+                cv2.destroyAllWindows()
+                """
 
         # Terminate CommsMan & rejoin thread.
         if (self.com.TerminateCommsMan() == -1):
@@ -176,27 +201,11 @@ class SystemMan():
 
         self.compileFrames()
 
-def compileFrames(self):
-    self.sto.Compile("../testData/video%d.mp4" % self.currVideo, 30)
-    self.stoThread.join()
-
-    self.currVideo += 1
-
-def restartNewVideoStorage(self):
-    self.sto = StorageMan()
-    self.stoThread = threading.Thread(target=(self.sto.launch))
-    self.stoThread.start()
-
-def parseMsgForBoundingBox(self, msg):
-    a = msg.split(";")
-    l,t,r,b = a[0], a[1], a[2], a[3]
-    return BoundingBox(left=l, top=t, right=r, bottom=b)
 
 
 def mockTrackObjectInNewFrame(frame):
     success, optical_flow, new_bbox = 0, 0, 0
     return success, optical_flow, new_bbox
-
 
 
 if __name__ == '__main__':
@@ -208,6 +217,7 @@ if __name__ == '__main__':
     # Simulate repeated message retrievals from Remote Interface until "Terminate" message is received and System shuts down.
     userInput = ""
     while (userInput != "Terminate"):
+        print("Enter simulated BT message: ")
         userInput = input()
         print("UserInput: %s" % userInput)
         system.SimulateReceiveBT(userInput)

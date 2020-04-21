@@ -1,4 +1,4 @@
-class Error(Exception):
+class FilmingError(Exception):
     """Base class for exceptions in this module"""
     pass
 
