@@ -17,7 +17,7 @@ class ViewController: UIViewController {
     // Core image filepaths
     let blankImg = "blank_white"
     let loadingImg = "loading_white"
-    let testImg = "object_detection_test"
+    let testImg = "labeled_test"
     
     @IBOutlet weak var frameView: UIImageView!
     @IBOutlet weak var instructionLabel: UILabel!
@@ -50,26 +50,35 @@ class ViewController: UIViewController {
     @IBAction func actionRequested(_ sender: Any) {
         if state == "IDLE" {
             // Send Bluetooth request "GetTargets" to CSM and display the received frame
-            frameView.image = UIImage(named: requestFrameViaBluetooth())
+            let newFrame = requestFrameViaBluetooth()
             
-            // Enable stepper and label
-            targetSelection.isEnabled = true
-            targetSelector.isEnabled = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.frameView.image = UIImage(named: newFrame)
+                
+                // Enable stepper and label
+                self.targetSelection.isEnabled = true
+                self.targetSelector.isEnabled = true
+                
+                // Update user instruction
+                self.instructUser(msg: "Scale to target ID and confirm, or request another frame")
             
-            // Update user instruction
-            instructUser(msg: "Scale to target ID and confirm, or request another frame")
-        
-            // Update system state
-            state = "DISPLAYING"
+                // Update system state
+                self.state = "DISPLAYING"
+            }
             
         } else if state == "DISPLAYING" {
             // Send Bluetooth request "GetTargets" to CSM and display the received frame
-            frameView.image = UIImage(named: requestFrameViaBluetooth())
+            let newFrame = requestFrameViaBluetooth()
             
-            // Reset DISPLAYING view
-            targetSelector.value = 0
-            targetSelection.text = "No Target"
-            bottomButton.isEnabled = false
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.frameView.image = UIImage(named: newFrame)
+                
+                // Reset DISPLAYING view
+                self.targetSelector.value = 0
+                self.targetSelection.text = "No Target"
+                self.bottomButton.isEnabled = false
+            }
             
         } else if state == "TRACKING" {
             // Reset image display
@@ -85,6 +94,7 @@ class ViewController: UIViewController {
             instructUser(msg: "Select 'Stop Recording' to terminate tracking or restart")
             
             state = "IDLE"
+            print("Sending 'Stop Recording' to CSM!")
         }
     }
     
@@ -102,6 +112,8 @@ class ViewController: UIViewController {
         targetSelection.isEnabled = false
         targetSelector.isEnabled = false
         state = "TRACKING"
+        
+        print("Sending Target Information!")
     }
     
     
@@ -126,10 +138,7 @@ class ViewController: UIViewController {
         print("Frame Requested!")
         
         // Temporarily display loading image
-//        frameView.image = UIImage(named: loadingImg)
-        
-        // Simulate wait
-//        sleep(1)
+        frameView.image = UIImage(named: loadingImg)
         
         print("Frame Retrieved!")
         
