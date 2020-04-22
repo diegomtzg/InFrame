@@ -2,6 +2,7 @@ import queue
 import threading
 import time
 import cv2
+import sys
 
 import utils.Exceptions as newExceptions
 from utils.PerceptionUtils import BoundingBox
@@ -105,8 +106,7 @@ class SystemMan():
                         # Signal to StorageMan to compile frames.
                         self.compileFrames()
 
-                        # Relaunch CameraMan with new source
-                        # TODO(@Diego): Ask Ike about this
+                        # Relaunch StorageMan with new source
                         self.restartNewVideoStorage()
 
                         self.inFrame = False
@@ -184,14 +184,12 @@ class SystemMan():
                 keyCode = cv2.waitKey(1)
 
                 # Stop the program on the ESC key
-                # TODO(@Ike): How to have this terminate every thread and free resources?
                 if keyCode & 0xFF == 27:
                     break
 
-                """
-                self.cam.Release()
-                cv2.destroyAllWindows()
-                """
+        # Destroy/deallocate resources
+        self.cam.Release()
+        cv2.destroyAllWindows()
 
         # Terminate CommsMan & rejoin thread.
         if (self.com.TerminateCommsMan() == -1):
@@ -199,12 +197,6 @@ class SystemMan():
         self.comThread.join()
 
         self.compileFrames()
-
-
-
-def mockTrackObjectInNewFrame(frame):
-    success, optical_flow, new_bbox = 0, 0, 0
-    return success, optical_flow, new_bbox
 
 
 if __name__ == '__main__':
@@ -221,5 +213,3 @@ if __name__ == '__main__':
         print("UserInput: %s" % userInput)
         system.SimulateReceiveBT(userInput)
 
-    # start_time = time.time()
-    # print(time.time() - start_time)
