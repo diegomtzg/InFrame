@@ -193,6 +193,7 @@ if __name__ == '__main__':
         framesSinceReset = 0
 
         # Now we can begin the main program/tracking loop.
+        fps = FPS().start()
         while True:
 
             # Get latest frame.
@@ -228,8 +229,12 @@ if __name__ == '__main__':
             if keyCode & 0xFF == 27:
                  break
 
+            fps.update()
+
     finally:
         # Terminate resources
         source.Release()
         cv2.destroyAllWindows()
+        fps.stop()
+        print("FPS: ", fps.fps())
 
