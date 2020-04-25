@@ -21,4 +21,4 @@ class BoundingBox:
 
 
 
-        return (x, y)
+        return (int(x), int(y))

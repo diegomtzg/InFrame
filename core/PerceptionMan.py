@@ -5,8 +5,8 @@ from imutils.video import FPS
 import cv2
 import time
 
-from ImageSources import ImageSource, LocalVideo, LocalImage, CSICamera
-from PerceptionUtils import BoundingBox
+from utils.ImageSources import ImageSource, LocalVideo, LocalImage, CSICamera
+from utils.PerceptionUtils import BoundingBox
 
 class PerceptionMan:
     """
@@ -34,11 +34,16 @@ class PerceptionMan:
         :return detections: A list of the detected object bounding boxes (type jetson.inference.detectNet.Detection)
         :return result_img: CUDA rgba image with object detection results overlaid
         """
+
+        last_time = time.time()
+
         # Transform image into RGBA space and place into a cuda container since object detection model expects it.
         cudaImg = ImageSource.rgb2crgba(image)
 
         # Detect objects in a given image and overlay results on top of it.
         detections = self.net.Detect(cudaImg, width, height)
+
+        print("DETECT OBJECTS TIME", time.time() - last_time)
 
         return detections, cudaImg
 
@@ -50,6 +55,9 @@ class PerceptionMan:
         :param bbox: The box surrounding the target object (BoundingBox from PerceptionUtils).
         :return success: True if tracker was successfully initialized, false otherwise.
         """
+
+        last_time = time.time()
+
         x1, y1 = bbox.topLeft
         x2, y2 = bbox.bottomRight
 
@@ -66,6 +74,8 @@ class PerceptionMan:
         # Update current bounding box.
         self.currBoundingBox = bbox
 
+        print("INIT TRACKER TIME", time.time() - last_time)
+
         return success
 
 
@@ -77,6 +87,9 @@ class PerceptionMan:
         :return opticalFlow: Vector from the center of the previous bounding box to the current one (i.e. object movement).
         :return newBbox: New bounding box around target object.
         """
+
+        last_time = time.time()
+
         success, newBbox = self.tracker.update(currFrame)
 
         # Turn new bbox into our definition of a bbox (note: tracker's bbox uses width and height instead of a second point).
@@ -88,6 +101,8 @@ class PerceptionMan:
         # Calculate optical flow using the two most recent bboxes and update current bbox.
         opticalFlow = self.currBoundingBox.VectorTo(newBbox)
         self.currBoundingBox = newBbox
+
+        print("TRACKING TIME", time.time() - last_time)
 
         return success, opticalFlow, newBbox
 
@@ -124,11 +139,11 @@ class PerceptionMan:
         """
         print("Resetting tracker...")
 
-        detections, _ = perception.DetectObjects(frame, width, height)
-        resetBbox = perception.FindClassInDetections(detections, classID)
+        detections, _ = self.DetectObjects(frame, width, height)
+        resetBbox = self.FindClassInDetections(detections, classID)
 
         if resetBbox is not None:
-            perception.InitTracker(frame, resetBbox)
+            self.InitTracker(frame, resetBbox)
 
 
 
