@@ -7,6 +7,7 @@ import time
 
 from utils.ImageSources import ImageSource, LocalVideo, LocalImage, CSICamera
 from utils.PerceptionUtils import BoundingBox
+from CameraMan import CameraMan
 
 class PerceptionMan:
     """
@@ -28,7 +29,7 @@ class PerceptionMan:
         """
         Detects objects in a given image according to the confidence threshold
         specified in the constructor. Overlays results on input image by default.
-        :param image: The input image in standard RGB space.
+        :param image: The input image in RGBA space like network expects.
         :param width: Width of the input image.
         :param height: Height of the input image.
         :return detections: A list of the detected object bounding boxes (type jetson.inference.detectNet.Detection)
@@ -38,14 +39,14 @@ class PerceptionMan:
         last_time = time.time()
 
         # Transform image into RGBA space and place into a cuda container since object detection model expects it.
-        cudaImg = ImageSource.rgb2crgba(image)
+        #cudaImg = ImageSource.rgb2crgba(image)
 
         # Detect objects in a given image and overlay results on top of it.
-        detections = self.net.Detect(cudaImg, width, height)
+        detections = self.net.Detect(image, width, height)
 
         print("DETECT OBJECTS TIME", time.time() - last_time)
 
-        return detections, cudaImg
+        return detections, image
 
 
     def InitTracker(self, firstFrame, bbox):
@@ -139,7 +140,8 @@ class PerceptionMan:
         """
         print("Resetting tracker...")
 
-        detections, _ = self.DetectObjects(frame, width, height)
+        cudaImg = ImageSource.rgb2crgba(frame)
+        detections, _ = self.DetectObjects(cudaImg, width, height)
         resetBbox = self.FindClassInDetections(detections, classID)
 
         if resetBbox is not None:
@@ -148,19 +150,12 @@ class PerceptionMan:
 
 
 # Outline of full system CSM if only perception code was running.
-
 if __name__ == '__main__':
-
-    # Something like this but for the CSM seeing perception modules
-    # is in SystemMan (so you can import anything from the perception dir)
-    import sys
-    sys.path.append("../csm")
-    from CameraMan import CameraMan
-
     # If not path is specified, CameraMan instantiates a CSICamera image source.
     source = CameraMan()
-
-    perception = PerceptionMan()
+    perception = PerceptionMan(threshold=0.3)
+    display = jetson.utils.glDisplay()
+    testFile= open('test.txt', 'w+')
 
     # I put everything in a try block so that even when I interrupt the program
     # with ctrl + c we still free the camera and all the other resources inside
@@ -175,66 +170,35 @@ if __name__ == '__main__':
         frame, width, height = source.Capture()
         detections, _ = perception.DetectObjects(frame, width, height)
 
+        # TODO(@Ike): Send image to phone to select target class
+
         # Since the remote interface isn't set up yet, this part simulates choosing one of the bounding boxes returned
         # from object detection (the classID is set manually here, assuming that the target is a human)
         # Once the remote interface works, we would extract the class ID from the selected bounding box and save it
         # to reset the tracker every n frames. Here, we set it manually to 1 (person).
         # See helper method for more info.
-        initialBbox = perception.FindClassInDetections(detections, classID=1)
-
-        # Now that we have a bounding box returned from the "remote interface", we can initialize the
-        # tracker using said bounding box.
-        # Note: Here, we assume that the target hasn't moved from its original location since we are using that same
-        # bounding box.
-        frame, width, height = source.Capture()
-        perception.InitTracker(frame, initialBbox)
-
-        # Count number of frames so we can reset tracker every n frames
-        framesSinceReset = 0
+        currBbox = perception.FindClassInDetections(detections, classID=1)
 
         # Now we can begin the main program/tracking loop.
         fps = FPS().start()
         while True:
-
             # Get latest frame.
             frame, width, height = source.Capture()
+            detections, _ = perception.DetectObjects(frame, width, height)
+            display.RenderOnce(frame, width, height)
 
-            if framesSinceReset == perception.RESET_TRACKER_FREQ:
-                # Reset tracker every n frames using object detection since it accumulates error over time
-                # Note: There can only be one human present per frame in this case
-                perception.ResetTracker(frame, width, height, classID=1)
-                framesSinceReset = 0
+            newBbox = perception.FindClassInDetections(detections, classID=1)
 
-            # Track previously defined object in latest frame.
-            success, opticalFlow, newBbox = perception.TrackObjectInNewFrame(frame)
-            framesSinceReset += 1
-
-            if success:
-                # We can use the opticalFlow here (x, y) and send it to the motors.
-                # For now, we draw the latest bbox and print out the optical flow.
-                cv2.rectangle(frame, newBbox.topLeft, newBbox.bottomRight, (0, 0, 255), 2)
-                print(opticalFlow)
-            else:
-                # There was a tracking error, we need to handle it by resetting the tracker using
-                # object detection.
-                perception.ResetTracker(frame, width, height, classID=1)
-
-            # For testing purposes, let's display the results on a window.
-            cv2.imshow("Tracking Result", frame)
-
-            # Processor yield time (in ms) to allow for multitasking.
-            keyCode = cv2.waitKey(1)
-
-            # Stop the program on the ESC key
-            if keyCode & 0xFF == 27:
-                 break
+            # If we found the target, update bbox and print results.
+            if newBbox is not None:
+                opticalFlow = currBbox.VectorTo(newBbox)
+                testFile.write("%d, %d\n" % (opticalFlow))
 
             fps.update()
 
     finally:
         # Terminate resources
         source.Release()
-        cv2.destroyAllWindows()
         fps.stop()
         print("FPS: ", fps.fps())
 

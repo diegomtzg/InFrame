@@ -60,7 +60,7 @@ class CSICamera(ImageSource):
         [4] 1280 x 720; 120 fps
     """
 
-    def __init__(self, sensor_id=0, sensor_mode=3, flip_method=0, display_width=1280, display_height=720):
+    def __init__(self, sensor_id=0, sensor_mode=3, flip_method=2, display_width=1280, display_height=720):
         gstreamerPipeline = "nvarguscamerasrc sensor_id=%d sensor_mode=%d ! "\
                              "video/x-raw(memory:NVMM) ! "\
                              "nvvidconv flip-method=%d ! "\

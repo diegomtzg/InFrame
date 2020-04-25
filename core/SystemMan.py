@@ -6,6 +6,7 @@ import sys
 
 import utils.Exceptions as newExceptions
 from utils.PerceptionUtils import BoundingBox
+from utils.ImageSources import ImageSource
 
 from CommsMan import CommsMan
 from StorageMan import StorageMan
@@ -24,7 +25,7 @@ class SystemMan():
 
         # Instantiate sequential subsystems
         self.per = PerceptionMan()
-        self.cam = CameraMan()
+        self.cam = CameraMan(onlyDetect=False)
         self.mot = MotorMan()
 
         # Instantiate and launch in threads: CommsMan, StorageMan
@@ -120,7 +121,10 @@ class SystemMan():
                     # Note: For info on the detections list returned from detectObjects, see jetson.inference.detectNet.Detection
                     # from here https://rawgit.com/dusty-nv/jetson-inference/python/docs/html/python/jetson.inference.html#detectNet
                     frame, width, height = self.cam.Capture()
-                    detections, _ = self.per.DetectObjects(frame, width, height)
+
+                    # Transform image into RGBA space and place into a cuda container since object detection model expects it.
+                    cudaImg = ImageSource.rgb2crgba(frame)
+                    detections, _ = self.per.DetectObjects(cudaImg, width, height)
 
                     # TODO(@Ike - once iOS working): Send {detections, frame, width, height} to Remote Interface
                     pass
