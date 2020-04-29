@@ -2,19 +2,21 @@ import threading
 import queue
 import time
 
+import multiprocessing
+
 class CommsMan():
 
-    def __init__(self, commsQueue, termCommsQueue):
+    def __init__(self, commsQueue):
         # Sending data CommsMan --> SystemMan
         self.sysQueueSend = commsQueue
         # Sending data SystemMan --> CommsMan
-        self.sysQueueRecv = queue.Queue(maxsize=1)
+        self.sysQueueRecv = multiprocessing.Queue(maxsize=1)
 
         # Queue from which Bluetooth cmds are simulated as being received
-        self.btQueue = queue.Queue(maxsize=1)
+        self.btQueue = multiprocessing.Queue(maxsize=1)
 
         # Queue indicating CommsMan thread to terminate
-        self.terminateComms = queue.Queue(maxsize=1)
+        self.terminateComms = multiprocessing.Queue(maxsize=1)
 
         # Array representing log of messages marked to send out to remote interface
         self.testSendOutput = []
@@ -85,28 +87,28 @@ class CommsMan():
 
 if __name__ == '__main__':
     # Instantiate Comms object and launch thread
-    commsQueue = queue.Queue(maxsize=1)
+    commsQueue = multiprocessing.Queue(maxsize=1)
     cm = CommsMan(commsQueue)
-    x = threading.Thread(target=cm.launch)
+    x = multiprocessing.Process(target=cm.Launch)
     print("CommsMan     : before running thread")
     x.start()
     print("CommsMan     : after launching thread")
     
     # Simulate message send requests to remote
-    cm.sendMessageToRemote("Hello")
-    cm.sendMessageToRemote("My name is ike")
+    cm.SendMessageToRemote("Hello")
+    cm.SendMessageToRemote("My name is ike")
 
     # Simulate message retrieval from "Bluetooth" channel
-    cm.simulateReceiveBT("my name is Tim... the Enchanter!!")
+    cm.SimulateReceiveBT("my name is Tim... the Enchanter!!")
 
     # Confirm message retrieval
     newMsg = commsQueue.get()
-    testOutputBT = cm.simulateLogBluetooth()
+    testOutputBT = cm.SimulateLogBluetooth()
     print("CommsMan     : received message: %s" % newMsg)
     print("CommsMan     : Bluetooth message log:", testOutputBT)
 
     # Terminate CommsMan & rejoin thread
-    if (cm.terminateCommsMan() == -1):
+    if (cm.TerminateCommsMan() == -1):
         print("CommsMan     : Thread terminate has failed/timed-out.")
         raise TimeoutError
     x.join()
