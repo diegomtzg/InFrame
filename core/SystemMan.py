@@ -1,8 +1,8 @@
 import queue
-import threading
 import time
 import cv2
 import sys
+import multiprocessing
 
 import utils.Exceptions as newExceptions
 from utils.PerceptionUtils import BoundingBox
@@ -29,14 +29,14 @@ class SystemMan():
         self.mot = MotorMan()
 
         # Instantiate and launch in threads: CommsMan, StorageMan
-        self.comQ, self.comT = queue.Queue(maxsize=1), queue.Queue(maxsize=1)
-        self.com = CommsMan(self.comQ, self.comT)
-        self.comThread = threading.Thread(target=(self.com.Launch))
-        self.comThread.start()
+        self.comQ = multiprocessing.Queue(maxsize=1)
+        self.com = CommsMan(self.comQ)
+        self.comProcess = multiprocessing.Process(target=(self.com.Launch))
+        self.comProcess.start()
 
         self.sto = StorageMan()
-        self.stoThread = threading.Thread(target=(self.sto.Launch))
-        self.stoThread.start()
+        self.stoProcess = multiprocessing.Process(target=(self.sto.Launch))
+        self.stoProcess.start()
 
     def SendMessageToRemote(self, message):
         """
@@ -67,14 +67,14 @@ class SystemMan():
 
     def compileFrames(self):
         self.sto.Compile("../testData/video%d.mp4" % self.currVideo, 30)
-        self.stoThread.join()
+        self.stoProcess.join()
 
         self.currVideo += 1
 
     def restartNewVideoStorage(self):
         self.sto = StorageMan()
-        self.stoThread = threading.Thread(target=(self.sto.launch))
-        self.stoThread.start()
+        self.stoProcess = multiprocessing.Process(target=(self.sto.launch))
+        self.stoProcess.start()
 
     def parseMsgForBoundingBox(self, msg):
         a = msg.split(";")
@@ -198,7 +198,7 @@ class SystemMan():
         # Terminate CommsMan & rejoin thread.
         if (self.com.TerminateCommsMan() == -1):
             raise TimeoutError
-        self.comThread.join()
+        self.comProcess.join()
 
         self.compileFrames()
 
@@ -206,8 +206,8 @@ class SystemMan():
 if __name__ == '__main__':
     # Test SystemMan interactions
     system = SystemMan()
-    sysThread = threading.Thread(target=system.Launch)
-    sysThread.start()
+    sysProcess = multiprocessing.Process(target=system.Launch)
+    sysProcess.start()
 
     # Simulate repeated message retrievals from Remote Interface until "Terminate" message is received and System shuts down.
     userInput = ""

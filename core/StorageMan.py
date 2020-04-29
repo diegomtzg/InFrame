@@ -3,12 +3,14 @@ import numpy as np
 import os
 from os.path import isfile, join
 
+import multiprocessing
+
 class StorageMan():
 
     def __init__(self):
         self.frames = []
-        self.recvFrameQ = queue.Queue(maxsize=1)
-        self.compileQ = queue.Queue(maxsize=1)
+        self.recvFrameQ = multiprocessing.Queue(maxsize=1)
+        self.compileQ = multiprocessing.Queue(maxsize=1)
         self.width = -1
         self.height = -1
 
